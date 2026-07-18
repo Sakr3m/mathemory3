@@ -1,0 +1,915 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Eratostene</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Kalam:wght@700&family=Space+Mono:wght@400;700&family=Work+Sans:wght@400;500&display=swap" rel="stylesheet">
+<style>
+  :root{
+    --bg: #1E2C23;
+    --bg-panel: #2E4636;
+    --ink: #F3EFE4;
+    --ink-dim: #9FB0A2;
+    --yellow: #E8C468;
+    --red: #C1554B;
+    --rule: rgba(243,239,228,0.14);
+  }
+  *{ box-sizing:border-box; }
+  html,body{
+    margin:0; padding:0;
+    background: var(--bg);
+    color: var(--ink);
+    font-family:'Work Sans', sans-serif;
+    min-height:100vh;
+  }
+  body{
+    background-image:
+      radial-gradient(circle at 6% 96%, rgba(243,239,228,0.09), transparent 38%),
+      radial-gradient(circle at 95% 4%, rgba(243,239,228,0.09), transparent 38%);
+  }
+  .wrap{
+    max-width: min(1127px, calc(100% - 170px));
+    margin: 0 auto;
+    padding: 6vh 1.5rem 6vh;
+  }
+  h1{
+    font-family:'Kalam', cursive;
+    font-size: 3.192rem;
+    margin: 0 0 0.6rem;
+  }
+  h1 .accent{ color: var(--yellow); }
+  h1 .max-prime-note{ display: block; font-size: 0.54em; margin-top: 0.15rem; }
+  .rank-callout{ margin: 0 0 0.9rem; display:flex; align-items:baseline; gap: 0.7rem; flex-wrap: nowrap; }
+  .rank-badge{
+    display:inline-block;
+    flex-shrink: 0;
+    font-family:'Space Mono', monospace;
+    font-size: 0.935rem;
+    font-weight:700;
+    color: var(--bg);
+    background: var(--circle-color, var(--yellow));
+    padding: 0.275rem 0.77rem;
+    border-radius: 4px;
+    visibility: hidden;
+  }
+  .rank-phrase{
+    flex: 1 1 auto;
+    min-width: 0;
+    font-family:'Space Mono', monospace;
+    font-size: 0.935rem;
+    color: var(--ink-dim);
+    visibility: hidden;
+  }
+  .instructions{
+    color: var(--ink-dim);
+    font-size: 1.14rem;
+    line-height:1.5;
+    margin: 0 0 2rem;
+    white-space: nowrap;
+  }
+
+  .level-layout{
+    display:grid;
+    grid-template-columns: 529px 1fr;
+    gap: 2.3rem;
+    align-items:start;
+  }
+  @media (max-width: 1400px){
+    .level-layout{ grid-template-columns: 1fr; }
+  }
+
+  .grid{
+    display:grid;
+    grid-template-columns: repeat(5, 1fr);
+    gap: 0.6325rem;
+  }
+  .cell{
+    position:relative;
+    aspect-ratio:1;
+    display:flex;
+    align-items:center;
+    justify-content:center;
+    background: var(--bg-panel);
+    border: 1px solid var(--rule);
+    border-radius: 6px;
+    font-family:'Space Mono', monospace;
+    font-weight:700;
+    font-size: 1.265rem;
+    color: var(--ink);
+    cursor:pointer;
+    user-select:none;
+    -webkit-tap-highlight-color: transparent;
+    transition: background 0.15s ease;
+  }
+  .cell:hover{ background: #2A3D31; }
+  .cell.selected{ color: var(--circle-color, var(--yellow)); }
+  .cell svg{ position:absolute; inset:0; width:100%; height:100%; overflow:visible; pointer-events:none; }
+  .cell circle{
+    fill:none;
+    stroke: var(--circle-color, var(--yellow));
+    stroke-width: 3;
+    stroke-linecap: round;
+    stroke-dasharray: 169.6;
+    stroke-dashoffset: 169.6;
+    transition: stroke-dashoffset 0.35s ease;
+  }
+  .cell.selected circle{ stroke-dashoffset: 0; }
+
+  .side-panel{ display:flex; flex-direction:column; gap: 1.61rem; }
+  .picked-row{
+    display:grid;
+    grid-template-columns: repeat(5, 1fr);
+    gap: 0.575rem;
+  }
+  .picked-chip{
+    aspect-ratio: 1;
+    display:flex;
+    align-items:center;
+    justify-content:center;
+    font-family:'Space Mono', monospace;
+    font-weight:700;
+    color: var(--yellow);
+    background: rgba(232,196,104,0.12);
+    border-radius: 6px;
+    font-size: 1.0925rem;
+  }
+  .picked-chip.empty-slot{
+    background: transparent;
+    border: 1px dashed var(--rule);
+    color: transparent;
+  }
+  @media (min-width: 1401px){
+    .side-panel > div:first-child{ margin-bottom: -0.9rem; }
+  }
+
+  .answer-row{ display:flex; flex-direction:column; gap: 0.69rem; }
+  input[type="number"]{
+    background: var(--bg-panel);
+    border: 1px solid var(--rule);
+    border-radius: 6px;
+    color: var(--ink);
+    font-family:'Space Mono', monospace;
+    font-size: 1.265rem;
+    padding: 0.92rem;
+    width: 100%;
+  }
+  input[type="number"]:focus{ outline: 2px solid var(--yellow); outline-offset: 1px; }
+  button.check{
+    font-family:'Space Mono', monospace;
+    font-weight:700;
+    background: var(--yellow);
+    color: var(--bg);
+    border:none;
+    border-radius: 6px;
+    padding: 0.92rem 1.61rem;
+    cursor:pointer;
+  }
+  button.check:hover{ background:#f0d488; }
+  button.check:disabled{
+    background: var(--bg-panel);
+    color: var(--ink-dim);
+    cursor: not-allowed;
+    border: 1px solid var(--rule);
+  }
+  button.check.error{
+    background: var(--red);
+    color: var(--ink);
+    cursor: not-allowed;
+  }
+  button.check.error:hover{ background: var(--red); }
+
+  .feedback{ font-family:'Space Mono', monospace; font-size: 0.9rem; min-height: 1.4rem; margin: 0; }
+  .feedback.ok{ color: #9DC48C; }
+  .feedback.bad{ color: var(--red); }
+
+  .next-link{
+    display:inline-block;
+    margin-top: 0.6rem;
+    font-family:'Space Mono', monospace;
+    font-weight:700;
+    color: var(--yellow);
+    text-decoration:none;
+  }
+
+  .error-box{
+    background: var(--bg-panel);
+    border: 1px solid var(--red);
+    border-radius: 6px;
+    padding: 1.2rem;
+    color: var(--ink-dim);
+    font-size: 0.9rem;
+    line-height:1.6;
+  }
+  .error-box code{ color: var(--yellow); }
+
+  .title-icon-row{
+    display:flex;
+    align-items:center;
+    justify-content:space-between;
+    gap: 1rem;
+    margin-bottom: 1.4rem;
+  }
+  .title-icon-row h1{ margin: 0; flex: 1; min-width: 0; text-align: center; }
+  .mobile-icon-btn{
+    flex-shrink: 0;
+    width: 84px;
+    height: 84px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    border: 1px solid var(--rule);
+    border-radius: 50%;
+    background: var(--bg-panel);
+    color: var(--ink-dim);
+    text-decoration: none;
+    font-family:'Space Mono', monospace;
+    font-size: 2.24rem;
+    cursor: pointer;
+    transition: border-color 0.15s ease, color 0.15s ease;
+  }
+  .mobile-icon-btn:hover{ color: var(--yellow); border-color: var(--yellow); }
+
+  /* --- spazio banner --- */
+  .page-shell{
+    min-height: 100vh;
+    display:grid;
+    grid-template-columns: minmax(0,1fr);
+    grid-template-areas: "content";
+    max-width: 1127px;
+    margin: 0 auto;
+    align-items:start;
+    padding: 0 1rem;
+  }
+  .content-col{ grid-area: content; min-width:0; }
+
+  @media (max-width: 900px){
+    .page-shell{
+      min-height: 100vh;
+      grid-template-columns: 1fr;
+      grid-template-areas: "content";
+      padding: 0;
+      max-width: 100%;
+    }
+  }
+
+  @media (min-width: 901px) and (max-width: 1400px), (max-height: 800px){
+    .instructions{ display: none; }
+  }
+
+  /* ============================================================
+     SOLO MOBILE: da qui in giù, correzioni isolate,
+     non toccano in alcun modo lo stile desktop sopra.
+     ============================================================ */
+  @media (max-width: 900px){
+    .content-col{
+      min-height: 100vh;
+      min-height: 100dvh;
+      box-sizing: border-box;
+    }
+
+    /* il contenitore centrale: larghezza minore del 100%, margini automatici, un solo metodo di centraggio */
+    .wrap{
+      width: 92%;
+      max-width: 480px;
+      margin: 0 auto;
+      padding: 2vh 0 3vh;
+      box-sizing: border-box;
+    }
+
+    /* titolo: due righe centrate, pulsanti icona ai lati (dimensioni ridotte per mobile) */
+    .title-icon-row{
+      gap: 0.5rem;
+      margin-bottom: 1.2rem;
+      width: 100%;
+    }
+    .title-icon-row h1{
+      font-size: 0.85rem;
+      text-align: center;
+    }
+    .title-icon-row h1 .max-prime-note{ display: block; font-size: 0.765em; margin-top: 0.15rem; }
+    .mobile-icon-btn{
+      width: 44px;
+      height: 44px;
+      font-size: 1.2rem;
+    }
+    .mobile-icon-btn:active{ background: var(--rule); }
+
+    .instructions{ display: none; } /* niente spazio per il paragrafo lungo qui, il titolo basta */
+    .rank-callout{ flex-wrap: nowrap; width: 100%; min-height: 0.85rem; margin-bottom: 0.59rem; align-items: flex-start; }
+    .rank-badge{ font-size: 0.528rem; padding: 0.18rem 0.54rem; flex-shrink: 0; }
+    .rank-phrase{ font-size: 0.456rem; flex: 1 1 auto; min-width: 0; margin-top: -0.1rem; }
+
+    /* niente più colonne fisse: un blocco solo, la griglia occupa tutta la larghezza del contenitore */
+    .level-layout{
+      display: block;
+      width: 100%;
+    }
+    .grid{
+      display: grid;
+      grid-template-columns: repeat(5, 1fr);
+      gap: 0.4rem;
+      width: 100%;
+      margin-bottom: 0.5rem;
+    }
+    .cell{ font-size: 1rem; }
+
+    .side-panel{
+      display: grid;
+      grid-template-columns: 1fr 3.4rem;
+      grid-template-rows: auto auto auto;
+      column-gap: 0.6rem;
+      row-gap: 0.5rem;
+      width: 100%;
+      margin-top: 0.5rem;
+    }
+    .side-panel > div:first-child{ grid-column: 1; grid-row: 2; }
+    .answer-row{ display: contents; }
+    .answer-row input[type="number"]{ grid-column: 1; grid-row: 1; }
+    .answer-row button.check{
+      grid-column: 2;
+      grid-row: 1 / 3;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      padding: 0.4rem;
+      height: 100%;
+    }
+    .answer-row button.check .check-label{
+      display: block;
+      line-height: 1.15;
+      text-align: center;
+    }
+    .feedback{ grid-column: 1 / 3; grid-row: 3; }
+
+    .picked-row{
+      position: relative;
+      display: grid;
+      grid-template-columns: repeat(5, 1fr);
+      gap: 0.4rem;
+      min-height: 2.3rem;
+      padding: 0.2rem 0.4rem 0.2rem;
+      width: 100%;
+      box-sizing: border-box;
+    }
+    .picked-chip{
+      font-size: 0.9rem;
+      text-align: center;
+      border: 1px solid var(--rule);
+      border-radius: 4px;
+    }
+    .picked-chip.empty-slot{
+      background: transparent;
+      border-style: dashed;
+      color: transparent;
+    }
+    input[type="number"]{ font-size: 1.05rem; padding: 0.5rem 0.7rem; width: 100%; box-sizing: border-box; }
+  }  /* --- blocco orizzontale: nasconde tutto e mostra un avviso finché il telefono non torna verticale --- */
+  .rotate-lock-overlay{ display: none; }
+  @media (orientation: landscape) and (max-width: 900px), (orientation: landscape) and (max-height: 500px){
+    .rotate-lock-overlay{
+      display: flex;
+      position: fixed;
+      inset: 0;
+      z-index: 9999;
+      background: var(--bg);
+      color: var(--ink);
+      align-items: center;
+      justify-content: center;
+      text-align: center;
+      padding: 2rem;
+      font-family:'Space Mono', monospace;
+      font-size: 1rem;
+    }
+    .page-shell{ display: none; }
+  }
+  /* --- popup di fine gara (Livello 200) --- */
+  .modal-overlay{
+    display:none;
+    position: fixed;
+    inset: 0;
+    background: rgba(0,0,0,0.55);
+    z-index: 10000;
+    align-items:center;
+    justify-content:center;
+    padding: 1.5rem;
+    box-sizing: border-box;
+  }
+  .modal-overlay.visible{ display:flex; }
+  .modal-card{
+    background: var(--bg-panel);
+    border: 1px solid var(--rule);
+    border-radius: 10px;
+    padding: 2rem;
+    max-width: 480px;
+    width: 100%;
+    text-align:center;
+    box-sizing: border-box;
+  }
+  .modal-card h3{
+    font-family:'Kalam', cursive;
+    font-size: 1.6rem;
+    margin: 0 0 1rem;
+    color: var(--ink);
+  }
+  .modal-card p{
+    font-family:'Space Mono', monospace;
+    font-size: 0.95rem;
+    color: var(--ink-dim);
+    margin: 0 0 1.2rem;
+    line-height: 1.5;
+  }
+  .modal-card input[type="text"]{
+    width: 100%;
+    box-sizing: border-box;
+    background: var(--bg);
+    border: 1px solid var(--rule);
+    border-radius: 6px;
+    color: var(--ink);
+    font-family:'Space Mono', monospace;
+    font-size: 1.05rem;
+    padding: 0.7rem;
+    margin-bottom: 1.4rem;
+  }
+  .modal-card input[type="text"]:focus{ outline: 2px solid var(--yellow); outline-offset: 1px; }
+  .modal-buttons{
+    display:flex;
+    justify-content:center;
+    gap: 1rem;
+  }
+  .modal-btn{
+    font-family:'Space Mono', monospace;
+    font-weight:700;
+    font-size: 1rem;
+    border: none;
+    border-radius: 6px;
+    padding: 0.7rem 1.8rem;
+    cursor:pointer;
+  }
+  .modal-btn.yes{ background: var(--yellow); color: var(--bg); }
+  .modal-btn.no{ background: transparent; color: var(--ink-dim); border: 1px solid var(--rule); }
+
+  .audio-slider-row{
+    display: flex;
+    align-items: center;
+    gap: 0.8rem;
+    margin-bottom: 1rem;
+  }
+  .audio-slider-row label{
+    font-family:'Work Sans', sans-serif;
+    font-size: 0.9rem;
+    color: var(--ink-dim);
+    min-width: 5.5rem;
+  }
+  .audio-slider-row input[type="range"]{
+    flex: 1;
+    accent-color: var(--yellow);
+  }
+  .audio-slider-row span{
+    font-family:'Space Mono', monospace;
+    font-size: 0.85rem;
+    color: var(--ink);
+    min-width: 2.8rem;
+    text-align: right;
+  }
+  .audio-toggle-btn{ cursor: pointer; }
+  .modal-note{
+    font-family:'Space Mono', monospace;
+    font-size: 0.75rem;
+    color: var(--ink-faint);
+    margin-top: 0.8rem;
+  }
+</style>
+</head>
+<body>
+
+<audio id="bgMusic" src="eratostene_thesieve.mp3" loop preload="none"></audio>
+
+<div class="rotate-lock-overlay">Please rotate your device back to portrait to continue.</div>
+
+<div class="modal-overlay" id="audioSettingsModal">
+  <div class="modal-card" style="position:relative; background:var(--bg-panel); opacity:1;">
+    <button type="button" id="audioSettingsCloseBtn" aria-label="Close" style="position:absolute; top:0.7rem; right:0.7rem; width:2rem; height:2rem; border-radius:50%; border:none; background:var(--bg); color:var(--ink); font-size:1rem; cursor:pointer; display:flex; align-items:center; justify-content:center;">✕</button>
+    <h3>🔊 Audio settings</h3>
+    <div class="audio-slider-row">
+      <label>Music</label>
+      <input type="range" id="musicVolSlider" min="0" max="100" step="10">
+      <span id="musicVolLabel"></span>
+    </div>
+    <div class="audio-slider-row">
+      <label>Sound effects</label>
+      <input type="range" id="sfxVolSlider" min="0" max="100" step="10">
+      <span id="sfxVolLabel"></span>
+    </div>
+  </div>
+</div>
+
+<div class="modal-overlay" id="finishModal">
+  <div class="modal-card">
+    <h3>🎉 You finished the demo!</h3>
+    <p>Like what you played? The full game is waiting, with 200 levels and more ways to play.</p>
+    <div class="modal-buttons">
+      <a class="modal-btn yes" href="https://sakr3m.github.io/mathemory/" target="_blank" rel="noopener" style="text-decoration:none; display:inline-block;">Play the full game</a>
+      <button type="button" class="modal-btn no" id="finishRestartBtn">Back to Level 1</button>
+    </div>
+  </div>
+</div>
+
+<div class="page-shell">
+  <div class="content-col">
+  <div class="wrap" id="wrap">
+    <div class="title-icon-row">
+      <button type="button" class="mobile-icon-btn audio-toggle-btn" id="mobileSkipBtn" aria-label="Sound">🔊</button>
+      <h1 id="levelTitle"></h1>
+    </div>
+    <p class="instructions">Tap every prime you can find. They'll drop into the box on the side to help you add them up. Then write the total.</p>
+    <div class="rank-callout" id="rankCallout"></div>
+    <div class="level-layout" id="levelLayout">
+      <p style="color:var(--ink-dim); font-family:'Space Mono', monospace; font-size:0.85rem;">Loading level…</p>
+    </div>
+  </div>
+  </div>
+</div>
+
+<script>
+  const params = new URLSearchParams(window.location.search);
+  const STORAGE_KEY = 'erato_demo_last';
+  const levelNum = parseInt(params.get('n')) || parseInt(localStorage.getItem(STORAGE_KEY)) || 1;
+  const wrap = document.getElementById('wrap');
+
+  // --- 3 effetti sonori: cerchio (selezione), giusto, sbagliato ---
+  // i file mp3 devono stare nella stessa cartella/repo di questo file
+  // --- 3 effetti sonori via Web Audio API: latenza minima, decodificati in memoria in anticipo ---
+  const audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+  const soundBuffers = {};
+  function loadSound(name, url){
+    fetch(url)
+      .then(res => res.arrayBuffer())
+      .then(data => audioCtx.decodeAudioData(data))
+      .then(buffer => { soundBuffers[name] = buffer; })
+      .catch(() => {}); // se il file manca o non si carica, il gioco funziona comunque senza audio
+  }
+  loadSound('circle', 'eratostene_circle.mp3');
+  loadSound('right', 'eratostene_right.mp3');
+  loadSound('wrong', 'eratostene_wrong.mp3');
+  loadSound('winner', 'eratostene_winner.mp3');
+  loadSound('tap', 'tap.mp3'); // suono generico, riusabile per la maggior parte dei pulsanti della pagina
+
+  let currentCircleSource = null;
+  function playSound(name){
+    const buffer = soundBuffers[name];
+    if (!buffer) return; // non ancora decodificato (o file assente): niente audio, nessun errore
+    if (window.MathemoryAudio && window.MathemoryAudio.isMuted()) return;
+    if (audioCtx.state === 'suspended') audioCtx.resume();
+
+    // solo per il cerchio: fermo l'istanza precedente, niente sovrapposizioni da tap veloci
+    if (name === 'circle' && currentCircleSource){
+      try { currentCircleSource.stop(); } catch(e){}
+    }
+
+    const source = audioCtx.createBufferSource();
+    source.buffer = buffer;
+    const gainNode = audioCtx.createGain();
+    gainNode.gain.value = window.MathemoryAudio ? window.MathemoryAudio.getSfxVolume() : 1;
+    source.connect(gainNode);
+    gainNode.connect(audioCtx.destination);
+    source.start(0);
+    if (name === 'circle') currentCircleSource = source;
+  }
+
+  // --- titoli di rango, a salire per livello raggiunto ---
+  const RANKS = [
+    { level: 150, title: 'Master of the Sieve', phrase: "You've mastered the sieve itself." },
+    { level: 75,  title: 'Geometer of Primes', phrase: 'Few see the structure beneath the primes as clearly as you.' },
+    { level: 25,  title: 'Pattern Seeker', phrase: 'The patterns are starting to reveal themselves.' },
+    { level: 10,  title: 'Apprentice of Cyrene', phrase: 'A student of Cyrene, taking your first true steps.' },
+  ];
+  function rankForLevel(lvl){
+    return RANKS.find(r => lvl >= r.level) || null;
+  }
+
+  // --- colore dei cerchi/numeri selezionati, a gradini ogni 50 livelli ---
+  function circleColorForLevel(lvl){
+    if (lvl >= 150) return '#C1554B'; // rosso
+    if (lvl >= 100) return '#D9793A'; // arancione scuro
+    if (lvl >= 50)  return '#EFAE68'; // arancione chiaro
+    return '#E8C468'; // giallo base
+  }
+
+  function isPrime(n){
+    if (n < 2) return false;
+    if (n % 2 === 0) return n === 2;
+    for (let i = 3; i*i <= n; i += 2){
+      if (n % i === 0) return false;
+    }
+    return true;
+  }
+
+  function showError(message){
+    document.getElementById('levelLayout').innerHTML = `
+      <h1>Something went wrong</h1>
+      <div class="error-box">${message}</div>
+    `;
+  }
+
+  fetch('eratostene_demo.json')
+    .then(res => {
+      if (!res.ok) throw new Error('HTTP ' + res.status);
+      return res.json();
+    })
+    .then(sections => {
+      const allLevels = [];
+      sections.forEach(section => {
+        section.livelli.forEach(lv => {
+          allLevels.push({ ...lv, checkpoint: section.checkpoint });
+        });
+      });
+
+      if (levelNum < 1 || levelNum > allLevels.length){
+        showError(`Level ${levelNum} doesn't exist (valid range: 1-${allLevels.length}).`);
+        return;
+      }
+
+      const levelData = allLevels[levelNum - 1];
+      renderLevel(levelData);
+    })
+    .catch(err => {
+      showError(`
+        Could not load <code>eratostene_demo.json</code>.<br><br>
+        If you're testing this by double-clicking the file (a <code>file://</code> address), most browsers block this kind of request for security reasons.<br><br>
+        Fix: open a terminal in this folder and run <code>python -m http.server 8000</code>, then visit
+        <code>http://localhost:8000/index.html</code> instead.<br><br>
+        Technical detail: ${err.message}
+      `);
+    });
+
+  function renderLevel(levelData){
+    const grid = levelData.griglia;
+    const checkpoint = levelData.checkpoint;
+    const circleColor = circleColorForLevel(levelNum);
+    const rankInfo = rankForLevel(levelNum);
+
+    // "Check" impilato lettera per lettera solo su mobile, testo normale su desktop
+    const checkLabelHtml = window.innerWidth <= 900 ? 'C<br>h<br>e<br>c<br>k' : 'Check';
+
+    wrap.style.setProperty('--circle-color', circleColor);
+
+    document.getElementById('levelTitle').innerHTML =
+      `Eratostene <span class="accent">·</span> Level ${levelNum} <span class="accent max-prime-note">(max prime number = ${checkpoint})</span>`;
+
+    document.getElementById('rankCallout').innerHTML = rankInfo
+      ? `<span class="rank-badge">${rankInfo.title}</span><span class="rank-phrase">${rankInfo.phrase}</span>`
+      : '';
+
+    document.getElementById('levelLayout').innerHTML = `
+      <div class="grid" id="gridEl"></div>
+      <div class="side-panel">
+        <div>
+          <div class="picked-row" id="pickedRow"></div>
+        </div>
+        <div class="answer-row">
+          <input type="number" id="answerInput" placeholder="Sum of the primes" inputmode="numeric">
+          <button class="check" id="checkBtn"><span class="check-label">${checkLabelHtml}</span></button>
+        </div>
+        <p class="feedback" id="feedback"></p>
+      </div>
+    `;
+
+    const gridEl = document.getElementById('gridEl');
+    const pickedRow = document.getElementById('pickedRow');
+    const selected = new Set();
+
+    // il pannello destro si centra sull'altezza della griglia SOLO in modalità a due colonne (desktop).
+    // Su mobile (una colonna sola) non deve imporre nulla: lascio decidere il margine al CSS.
+    const sidePanel = document.querySelector('.side-panel');
+    function alignSidePanel(){
+      if (window.innerWidth <= 1400){
+        sidePanel.style.marginTop = ''; // tolgo l'inline style, non lo forzo a 0
+        return;
+      }
+      // griglia e pannello partono dalla stessa altezza naturale (stessa riga della grid CSS,
+      // align-items:start): basta la differenza di altezza tra i due, senza contare l'offset di pagina.
+      const desiredMarginTop = (gridEl.offsetHeight - sidePanel.offsetHeight) / 2;
+      sidePanel.style.marginTop = Math.max(0, desiredMarginTop) + 'px';
+    }
+    window.addEventListener('resize', alignSidePanel);
+
+    grid.forEach((value, i) => {
+      const cell = document.createElement('div');
+      cell.className = 'cell';
+      cell.dataset.index = i;
+      cell.innerHTML = value + '<svg viewBox="0 0 60 60"><circle cx="30" cy="30" r="27"/></svg>';
+      cell.addEventListener('click', () => toggleCell(i));
+      gridEl.appendChild(cell);
+    });
+
+    function toggleCell(i){
+      if (selected.has(i)){
+        selected.delete(i);
+      } else {
+        if (selected.size >= 5) return; // il sesto non è consentito, prima toglierne uno
+        selected.add(i);
+      }
+      checkLocked = false; // qualunque cambio di selezione sblocca il pulsante dall'errore precedente
+      render(); // prima il cerchio appare, SUBITO dopo parte il suono: mai farlo aspettare l'audio
+      if (selected.has(i)) playSound('circle');
+    }
+
+    let checkLocked = false;
+    const checkBtn = document.getElementById('checkBtn');
+
+    function updateCheckButtonState(){
+      checkBtn.classList.toggle('error', checkLocked);
+      checkBtn.disabled = checkLocked || selected.size < 5;
+    }
+
+    function render(){
+      [...gridEl.children].forEach(cell => {
+        const i = Number(cell.dataset.index);
+        cell.classList.toggle('selected', selected.has(i));
+      });
+      pickedRow.innerHTML = '';
+      const sortedSelected = [...selected].sort((a,b)=>a-b);
+
+      // sempre 5 mini riquadri, pieni o vuoti (segnaposto tratteggiato), su qualunque schermo
+      for (let slot = 0; slot < 5; slot++){
+        const chip = document.createElement('span');
+        const hasValue = slot < sortedSelected.length;
+        chip.className = 'picked-chip' + (hasValue ? '' : ' empty-slot');
+        chip.textContent = hasValue ? grid[sortedSelected[slot]] : '·';
+        pickedRow.appendChild(chip);
+      }
+      updateCheckButtonState();
+    }
+    render();
+    window.addEventListener('resize', render);
+
+    // solo ORA il pannello destro ha davvero tutti e 5 i riquadri dentro: l'altezza misurata è quella reale
+    alignSidePanel();
+
+    document.getElementById('checkBtn').addEventListener('click', () => {
+      playSound('tap');
+      const rawAnswer = document.getElementById('answerInput').value;
+      const answerProvided = rawAnswer !== '';
+      const answer = Number(rawAnswer);
+      const correctSum = grid.reduce((sum, v) => isPrime(v) ? sum + v : sum, 0);
+      const chosenAllPrimes = [...selected].every(i => isPrime(grid[i]));
+      const foundAllPrimes = grid.every((v, i) => !isPrime(v) || selected.has(i));
+
+      if (!answerProvided){
+        // la somma manca: errore veloce, ha sempre la precedenza su qualunque errore di selezione
+        triggerFastError();
+        return;
+      }
+
+      if (answer === correctSum && chosenAllPrimes && foundAllPrimes){
+        if (levelNum >= 25){
+          playSound('winner');
+          // demo finita: popup vuoto, un solo pulsante per tornare al Livello 1
+          document.getElementById('finishModal').classList.add('visible');
+        } else {
+          playSound('right');
+          // risposta corretta: si passa subito al livello successivo, senza messaggio intermedio
+          localStorage.setItem(STORAGE_KEY, String(levelNum + 1));
+          window.location.href = `index.html?n=${levelNum + 1}`;
+        }
+      } else if (chosenAllPrimes && foundAllPrimes){
+        // selezione giusta, solo la somma è sbagliata: errore veloce
+        triggerFastError();
+      } else {
+        // la selezione stessa è sbagliata: errore duraturo
+        playSound('wrong');
+        checkLocked = true;
+        updateCheckButtonState();
+      }
+    });
+
+    function triggerFastError(){
+      playSound('wrong');
+      checkBtn.classList.add('error');
+      checkBtn.disabled = true;
+      setTimeout(() => {
+        updateCheckButtonState();
+      }, 250);
+    }
+  }
+
+  // --- fine demo: un solo pulsante, torna sempre al Livello 1 ---
+  document.getElementById('finishRestartBtn').addEventListener('click', () => {
+    localStorage.setItem(STORAGE_KEY, '1');
+    window.location.href = 'index.html?n=1';
+  });
+
+  // --- sistema audio: mute globale, volumi musica/effetti, popup, standby (versione autonoma per la demo) ---
+  (function(){
+    const MUTED_KEY = 'mathemory_muted';
+    const MUSIC_VOL_KEY = 'mathemory_music_vol';
+    const SFX_VOL_KEY = 'mathemory_sfx_vol';
+    const DEFAULT_MUSIC_VOL = 40;
+    const DEFAULT_SFX_VOL = 100;
+
+    function isMobileScreen(){ return window.innerWidth <= 900; }
+    function getMusicVol(){
+      const v = localStorage.getItem(MUSIC_VOL_KEY);
+      return v === null ? DEFAULT_MUSIC_VOL : parseInt(v);
+    }
+    function getSfxVol(){
+      const v = localStorage.getItem(SFX_VOL_KEY);
+      return v === null ? DEFAULT_SFX_VOL : parseInt(v);
+    }
+    function setMusicVolStored(v){ localStorage.setItem(MUSIC_VOL_KEY, String(v)); applyMusicPlayback(); }
+    function setSfxVolStored(v){ localStorage.setItem(SFX_VOL_KEY, String(v)); }
+
+    let runtimeMuted = null;
+    function isMutedState(){ return runtimeMuted === null ? true : runtimeMuted; }
+    function setMutedState(val){
+      runtimeMuted = val;
+      localStorage.setItem(MUTED_KEY, val ? 'true' : 'false');
+      applyMusicPlayback();
+      updateAllButtons();
+    }
+
+    function applyMusicPlayback(){
+      if (!bgMusic) return;
+      bgMusic.volume = getMusicVol() / 100;
+      if (isMutedState()) bgMusic.pause();
+      else bgMusic.play().catch(() => {});
+    }
+
+    const buttons = document.querySelectorAll('.audio-toggle-btn'); // il pulsante e' HTML statico, presente da subito
+    function updateAllButtons(){
+      const icon = isMutedState() ? '🔇' : '🔊';
+      buttons.forEach(btn => { btn.textContent = icon; });
+    }
+
+    function initAudioState(){
+      // ad ogni caricamento di pagina si parte SEMPRE muto (icona e audio reale coerenti):
+      // nessun browser farebbe comunque partire l'audio da solo senza un tocco reale su questa pagina
+      runtimeMuted = true;
+      if (bgMusic) bgMusic.pause();
+      updateAllButtons();
+    }
+
+    document.addEventListener('visibilitychange', () => {
+      if (!bgMusic) return;
+      if (document.hidden) bgMusic.pause();
+      else if (!isMutedState()) bgMusic.play().catch(() => {});
+    });
+
+    function openVolumePopup(){
+      document.getElementById('musicVolSlider').value = getMusicVol();
+      document.getElementById('musicVolLabel').textContent = getMusicVol() + '%';
+      document.getElementById('sfxVolSlider').value = getSfxVol();
+      document.getElementById('sfxVolLabel').textContent = getSfxVol() + '%';
+      document.getElementById('audioSettingsModal').classList.add('visible');
+    }
+    document.getElementById('musicVolSlider').addEventListener('input', (e) => {
+      setMusicVolStored(parseInt(e.target.value));
+      document.getElementById('musicVolLabel').textContent = e.target.value + '%';
+    });
+    document.getElementById('sfxVolSlider').addEventListener('input', (e) => {
+      setSfxVolStored(parseInt(e.target.value));
+      document.getElementById('sfxVolLabel').textContent = e.target.value + '%';
+    });
+    document.getElementById('audioSettingsModal').addEventListener('click', (e) => {
+      if (e.target.id === 'audioSettingsModal') e.target.classList.remove('visible');
+    });
+    document.getElementById('audioSettingsCloseBtn').addEventListener('click', () => {
+      document.getElementById('audioSettingsModal').classList.remove('visible');
+    });
+
+    // pulsante statico: agganciato direttamente, nessuna delega necessaria
+    buttons.forEach(btn => {
+      let clickTimer = null;
+      btn.addEventListener('click', () => {
+        if (isMobileScreen()){
+          setMutedState(!isMutedState());
+          return;
+        }
+        if (clickTimer){
+          clearTimeout(clickTimer);
+          clickTimer = null;
+          setMutedState(!isMutedState());
+        } else {
+          clickTimer = setTimeout(() => {
+            clickTimer = null;
+            openVolumePopup();
+          }, 500);
+        }
+      });
+    });
+
+    window.MathemoryAudio = {
+      isMuted: isMutedState,
+      setMuted: setMutedState,
+      getSfxVolume: () => getSfxVol() / 100,
+    };
+
+    initAudioState();
+  })();
+</script>
+
+</body>
+</html>
