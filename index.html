@@ -1254,13 +1254,52 @@
       buttons.forEach(btn => { btn.classList.toggle('audio-on', !isMutedState()); });
     }
 
-    function initAudioState(){
-      // ad ogni caricamento di pagina si parte SEMPRE muto (icona e audio reale coerenti):
-      // nessun browser farebbe comunque partire l'audio da solo senza un tocco reale su questa pagina
+    function hasUserChoice(){ return localStorage.getItem(MUTED_KEY) !== null; }
+
+    // se l'utente ha gia scelto (in un livello precedente di questa stessa visita), la scelta
+    // si eredita passando al livello successivo - altrimenti la musica si stopperebbe sempre
+    // a ogni avanzamento, anche se l'utente l'aveva accesa apposta
+    function tryResumeInherited(){
+      runtimeMuted = localStorage.getItem(MUTED_KEY) === 'true';
+      updateAllButtons();
+      restoreMusicPositionOnce();
+
+      if (runtimeMuted || !bgMusic){
+        if (bgMusic) bgMusic.pause();
+        return;
+      }
+
+      bgMusic.volume = normalMusicVolume();
+      const p = bgMusic.play();
+      if (p && p.catch){
+        p.catch(() => {
+          function resumeOnce(){
+            bgMusic.play().catch(() => {});
+            document.removeEventListener('click', resumeOnce);
+            document.removeEventListener('touchstart', resumeOnce);
+          }
+          document.addEventListener('click', resumeOnce, { once: true });
+          document.addEventListener('touchstart', resumeOnce, { once: true });
+        });
+      }
+    }
+
+    function forceMutedStart(){
       runtimeMuted = true;
+      localStorage.setItem(MUTED_KEY, 'true');
       restoreMusicPositionOnce();
       if (bgMusic) bgMusic.pause();
       updateAllButtons();
+    }
+
+    function initAudioState(){
+      // se l'utente ha gia fatto una scelta in questa visita (anche su un livello precedente),
+      // la eredito - solo alla primissima visita di sempre parte muto di default
+      if (hasUserChoice()){
+        tryResumeInherited();
+        return;
+      }
+      forceMutedStart();
     }
 
     document.addEventListener('visibilitychange', () => {
