@@ -701,6 +701,14 @@
 </div>
 
 <script>
+  // il browser normalmente ripristina da solo la posizione di scroll di prima al refresh
+  // della pagina: su mobile, dove lo scroll e' del tutto bloccato (vedi touchmove qui sotto),
+  // se quella posizione non era zero la pagina resta "incastrata" li per sempre, senza modo
+  // di scorrere per sistemarla. Disattivo il ripristino automatico e forzo zero il prima possibile
+  if ('scrollRestoration' in history) history.scrollRestoration = 'manual';
+  window.scrollTo(0, 0);
+  window.addEventListener('pageshow', () => { window.scrollTo(0, 0); });
+
   // schermata bloccata su mobile: non deve scorrere in nessuna direzione (tutto
   // dovrebbe già stare nella schermata grazie al ridimensionamento). L'overflow:hidden
   // via CSS non basta sempre (es. il "rimbalzo" di iOS Safari), quindi blocco anche
@@ -767,11 +775,18 @@
   // --- 3 effetti sonori via Web Audio API: latenza minima, decodificati in memoria in anticipo ---
   const audioCtx = new (window.AudioContext || window.webkitAudioContext)();
   const soundBuffers = {};
+  const pendingSounds = new Set(); // suoni richiesti prima che il file finisse di caricare: li suono appena pronti
   function loadSound(name, url){
     fetch(url)
       .then(res => res.arrayBuffer())
       .then(data => audioCtx.decodeAudioData(data))
-      .then(buffer => { soundBuffers[name] = buffer; })
+      .then(buffer => {
+        soundBuffers[name] = buffer;
+        if (pendingSounds.has(name)){
+          pendingSounds.delete(name);
+          playSound(name); // richiesto troppo presto: lo suono ora, con un po' di ritardo ma non perso
+        }
+      })
       .catch(() => {}); // se il file manca o non si carica, il gioco funziona comunque senza audio
   }
   loadSound('pad', 'eratostene_pad.mp3');
@@ -781,10 +796,27 @@
   loadSound('badge', 'eratostene_badge.mp3');
   loadSound('tap', 'tap.mp3'); // suono generico, riusabile per la maggior parte dei pulsanti della pagina
 
+  // volume specifico per singolo suono, sopra a quello scelto con la barra effetti
+  // (o il 100% di default su mobile, dove la barra non c'e): 1 = nessuna modifica.
+  // Ogni suono puo avere un valore diverso per PC e per mobile (o un solo numero,
+  // se deve valere uguale su entrambi)
+  const SOUND_LEVELS = { pad: { desktop: 1, mobile: 0.7 }, badge: { desktop: 1, mobile: 0.5 }, winner: { desktop: 1, mobile: 1.1 } };
+  function getSoundLevel(name){
+    const level = SOUND_LEVELS[name];
+    if (level === undefined) return 1;
+    if (typeof level === 'number') return level;
+    const isMobileNow = window.innerWidth <= 900;
+    const value = isMobileNow ? level.mobile : level.desktop;
+    return typeof value === 'number' ? value : 1;
+  }
+
   let currentPadSource = null;
   function playSound(name){
     const buffer = soundBuffers[name];
-    if (!buffer) return; // non ancora decodificato (o file assente): niente audio, nessun errore
+    if (!buffer){
+      pendingSounds.add(name); // non ancora decodificato: lo riprovo quando il file finisce di caricare
+      return;
+    }
     if (window.MathemoryAudio && window.MathemoryAudio.isMuted()) return;
     if (audioCtx.state === 'suspended') audioCtx.resume();
 
@@ -796,11 +828,18 @@
     const source = audioCtx.createBufferSource();
     source.buffer = buffer;
     const gainNode = audioCtx.createGain();
-    gainNode.gain.value = window.MathemoryAudio ? window.MathemoryAudio.getSfxVolume() : 1;
+    const baseVolume = window.MathemoryAudio ? window.MathemoryAudio.getSfxVolume() : 1;
+    gainNode.gain.value = baseVolume * getSoundLevel(name);
     source.connect(gainNode);
     gainNode.connect(audioCtx.destination);
     source.start(0);
     if (name === 'pad') currentPadSource = source;
+
+    // durante badge e winner, la musica scende a un volume fisso (15%, non -15% dal suo volume attuale) per farli sentire meglio
+    if (window.MathemoryAudio && window.MathemoryAudio.duckMusic){
+      if (name === 'badge') window.MathemoryAudio.duckMusic(0.15, 1000);
+      if (name === 'winner') window.MathemoryAudio.duckMusic(0.15, 1500);
+    }
   }
 
   // --- titoli di rango, a salire per livello raggiunto ---
@@ -1156,9 +1195,54 @@
       updateAllButtons();
     }
 
+    const MUSIC_POSITION_KEY = 'mathemory_music_position'; // { src, time } — per continuare la musica tra un livello e l'altro invece di farla ripartire da zero
+    let musicPositionRestored = false;
+    function restoreMusicPositionOnce(){
+      if (musicPositionRestored || !bgMusic) return;
+      musicPositionRestored = true;
+      try {
+        const saved = JSON.parse(sessionStorage.getItem(MUSIC_POSITION_KEY) || 'null');
+        if (saved && saved.src === bgMusic.src && typeof saved.time === 'number' && isFinite(saved.time)){
+          bgMusic.currentTime = saved.time;
+        }
+      } catch(e){}
+    }
+    function saveMusicPosition(){
+      if (!bgMusic || !bgMusic.src) return;
+      try {
+        sessionStorage.setItem(MUSIC_POSITION_KEY, JSON.stringify({ src: bgMusic.src, time: bgMusic.currentTime }));
+      } catch(e){}
+    }
+    // 'pagehide' e piu affidabile di 'beforeunload' su mobile (Safari in particolare)
+    window.addEventListener('beforeunload', saveMusicPosition);
+    window.addEventListener('pagehide', saveMusicPosition);
+
+    // musica a volume diverso su PC (50%) e mobile (75%): stessi valori gia' in uso
+    // per il gioco completo (The Sieve). Pagina singola: un solo moltiplicatore, non
+    // serve distinguere per pagina come nel sito completo
+    function normalMusicVolume(){
+      const multiplier = isMobileScreen() ? 1.875 : 1.25;
+      return Math.min(1, (getMusicVol() / 100) * multiplier);
+    }
+
+    // abbassamento temporaneo della musica (es. mentre suona badge/winner) a un volume
+    // ASSOLUTO fisso, poi torna al volume giusto da sola. Un contatore gestisce eventuali
+    // sovrapposizioni: il volume torna normale solo quando TUTTI gli abbassamenti sono finiti
+    let duckActive = 0;
+    function duckMusic(targetVolume, durationMs){
+      if (!bgMusic) return;
+      duckActive++;
+      bgMusic.volume = Math.max(0, Math.min(1, targetVolume));
+      setTimeout(() => {
+        duckActive = Math.max(0, duckActive - 1);
+        if (duckActive === 0) bgMusic.volume = normalMusicVolume();
+      }, durationMs);
+    }
+
     function applyMusicPlayback(){
       if (!bgMusic) return;
-      bgMusic.volume = getMusicVol() / 100;
+      restoreMusicPositionOnce();
+      bgMusic.volume = normalMusicVolume();
       if (isMutedState()) bgMusic.pause();
       else bgMusic.play().catch(() => {});
     }
@@ -1174,6 +1258,7 @@
       // ad ogni caricamento di pagina si parte SEMPRE muto (icona e audio reale coerenti):
       // nessun browser farebbe comunque partire l'audio da solo senza un tocco reale su questa pagina
       runtimeMuted = true;
+      restoreMusicPositionOnce();
       if (bgMusic) bgMusic.pause();
       updateAllButtons();
     }
@@ -1231,6 +1316,7 @@
       isMuted: isMutedState,
       setMuted: setMutedState,
       getSfxVolume: () => getSfxVol() / 100,
+      duckMusic,
     };
 
     initAudioState();
